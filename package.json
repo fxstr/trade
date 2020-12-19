@@ -1,0 +1,25 @@
+{
+  "name": "trader",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx ava --verbose --watch"
+  },
+  "ava": {
+    "files": [
+      "**/*.unit.mjs",
+      "**/*.integration.mjs"
+    ]
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@joinbox/eslint-config-joinbox": "^1.0.8",
+    "ava": "^3.11.0"
+  },
+  "dependencies": {
+    "debug": "^4.2.0",
+    "table": "^6.0.3"
+  }
+}

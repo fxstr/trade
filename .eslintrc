@@ -1,0 +1,7 @@
+{
+    "parser": "babel-eslint",
+    "extends": "@joinbox/joinbox",
+    "rules": {
+        "brace-style": [1, "stroustrup"]
+    }
+}
