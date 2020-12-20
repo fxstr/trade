@@ -1,10 +1,12 @@
 import debug from 'debug';
 import table from 'table';
 import convertPositionsForTable from './convertPositionsForTable.mjs';
-import validateResolvedData from './validateResolvedData.mjs';
-import complementResolvedData from './complementResolvedData.mjs';
+import complementBar from './complementBar.mjs';
+import validateBar from './validateBar.mjs';
 import updatePrices from './updatePrices.mjs';
 import executeOrders from './executeOrders.mjs';
+import normalizeData from './normalizeData.mjs';
+import validateOrders from './validateOrders.mjs';
 
 const log = debug('WalkForward');
 const createTable = table.table;
@@ -18,10 +20,12 @@ const createTable = table.table;
  * @typedef {object} ResolvedData
  * @property {string} symbol
  * @property {Date} date
- * @property {number} price
+ * @property {number} open
+ * @property {number} close
  * @property {number} pointValue
- * @property {number} exchangeRate
- * @property {number} margin
+ * @property {number} openExchangeRate
+ * @property {number} closeExchangeRate
+ * @property {number} margin     Margin on open
  * @property {boolean} settleDifference
  * 
  * @typedef {object} Position
@@ -104,11 +108,8 @@ const createTable = table.table;
  * environment variable `DEBUG` to `WalkForward:*` to see what's happening behind the scenes:
  * `export DEBUG=WalkForward:*`
  * 
- * @param {array[]} data                Array with one entry per bar which consists of an array
- *                                      with one data structure per instrument. Data structure
- *                                      will be resolved (converted to trade data) via resolveData
- *                                      function.
- * @param {function} resolveData        Takes arguments: data for a bar and 'open' or 'close'.
+ * @param {function} getData            Returns [open, close] or falsy
+ *                                      TBD!!! Takes arguments: data for a bar and 'open' or 'close'.
  *                                      Must be a function (and not a data structure) as data 
  *                                      argument is the original data based on which orders
  *                                      are created.
@@ -140,14 +141,11 @@ const createTable = table.table;
  *                                      - positionsOnClose (object[])
  *                                      - closedPositions (object[])
  */
-export default ({ data, resolveData, createOrders, cash } = {}) => {
+export default async({ getData, createOrders, cash } = {}) => {
 
 
-    if (!Array.isArray(data)) {
-        throw new Error(`trade: Expected argument data to be an array, you passed ${data} instead.`);
-    }
-    if (typeof resolveData !== 'function') {
-        throw new Error(`trade: Expected argument resolveData to be a function, you passed ${resolveData} instead.`);
+    if (typeof getData !== 'function') {
+        throw new Error(`trade: Expected argument getData to be a function, you passed ${getData} instead.`);
     }
     if (typeof createOrders !== 'function') {
         throw new Error(`trade: Expected argument createOrders to be a function, you passed ${createOrders} instead.`);
@@ -160,44 +158,47 @@ export default ({ data, resolveData, createOrders, cash } = {}) => {
     // @type {Array.{date: Date, positions:object[], orders:object[], cash:number}}
     const result = [];
 
-    // Go through data; use for-of-loop for async executeOrders (if user uses async function)
-    for (const bar of data) {
+    // Current bar
+    // @type object[]
+    let bars;
+
+    // Collects all bars; will be passed to createOrders function. Youngest bar comes first.
+    // @type array[]
+    const allBars = [];
+
+    while ((bars = await getData())) {
+
+        // If getData() returns null, the loop is done.
+        if (bars === null) break;
+
+        if (!Array.isArray(bars)) {
+            throw new Error(`trade: Expected getData to return an array, got ${JSON.stringify(bars)} instead.`)
+        }
 
         log('🔽 '.repeat(32));
 
-        // Get date from first symbol's entry in bar
-        const currentDate = resolveData(bar[0], 'open').date;
+        const validatedBars = bars
+            .map(validateBar)
+            .map(complementBar);
+
+        // Get date from first symbol's entry in bars
+        const currentDate = validatedBars[0].date;
         log('📅 %s', currentDate);
-        console.log(currentDate);
 
-        // Resolve all data for current bar
-        const resolvedOpenData = bar
-            .map(data => resolveData(data, 'open'))
-            // Validate before and after complementResolvedData to get best error messages possible
-            .map(validateResolvedData)
-            .map(complementResolvedData)
-            .map(validateResolvedData);
-
-        const resolvedCloseData = bar
-            .map(data => resolveData(data, 'close'))
-            // Validate before and after complementResolvedData to get best error messages possible
-            .map(validateResolvedData)
-            .map(complementResolvedData)
-            .map(validateResolvedData);
 
         // Previous is either the last row of result (if existing) or an (empty) default
         const previous = result.slice(-1).pop() || {
             orders: [],
             cash,
             positionsOnClose: [],
-        }
+        };
 
 
         // Open
         // 1. Update prices
         const positionsOnOpen = updatePrices({
             positions: previous.positionsOnClose,
-            resolvedData: resolvedOpenData,
+            resolvedData: validatedBars.map(bar => normalizeData({ data: bar, type: 'open' })),
             newBar: true,
         });
 
@@ -206,7 +207,7 @@ export default ({ data, resolveData, createOrders, cash } = {}) => {
         // 2. Execute orders
         const { currentPositions, closedPositions } = executeOrders({
             orders: previous.orders,
-            resolvedData: resolvedOpenData,
+            resolvedData: validatedBars.map(bar => normalizeData({ data: bar, type: 'open' })),
             positions: positionsOnOpen,
         });
 
@@ -236,26 +237,26 @@ export default ({ data, resolveData, createOrders, cash } = {}) => {
         // 1. Update prices
         const positionsOnClose = updatePrices({
             positions: currentPositions,
-            resolvedData: resolvedCloseData,
+            resolvedData: validatedBars.map(bar => normalizeData({ data: bar, type: 'close' })),
         });
 
-        log('📈 Positions on close: \n%s', createTable(convertPositionsForTable(positionsOnClose)));
+        log(
+            '📈 Positions on close: \n%s',
+            createTable(convertPositionsForTable(positionsOnClose)),
+        );
+
+        // Add current bars (unmodified originals) to all bars
+        allBars.unshift(bars);
 
         // 2. Generate orders
         const orders = createOrders({
-            data: data
-                .filter((dataForDate) => {
-                    if (!dataForDate.length) return false;
-                    const date = resolveData(dataForDate[0], 'close').date;
-                    return date.getTime() <= currentDate.getTime()
-                })
-                // Return data for youngest bar first
-                .reverse(),
+            // Clone allBars so that original cannot be modified (at lest not on first level)
+            data: [...allBars],
             cash: currentCash,
             positions: positionsOnClose,
         });
 
-        // TODO: Validate orders here
+        validateOrders(orders);
 
         const ordersForTable = orders.map(row => [row.symbol, row.size]);
         log('📤 Orders: %s', orders.length ? `\n${createTable(ordersForTable)}` : 'None');
@@ -273,7 +274,7 @@ export default ({ data, resolveData, createOrders, cash } = {}) => {
         });
 
     }
-    
+
     return result;
 
 };

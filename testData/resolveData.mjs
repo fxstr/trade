@@ -1,30 +1,17 @@
 /**
  * Formats data for use in trade.js (and most other functions)
  */
-export default (row, type) => {
+export default (row) => ({
 
-    const data = {
-        date: row.date,
-        symbol: row.symbol,
-        settleDifference: row.settleDiff,
-    };
+    date: row.date,
+    symbol: row.symbol,
+    settleDifference: row.settleDiff,
+    open: row.open,
+    close: row.close,
+    openExchangeRate: row.openER,
+    margin: row.openMargin,
+    pointValue: row.openPV,
+    close: row.close,
+    closeExchangeRate: row.closeER,
 
-    if (type === 'open') {
-        data.price = row.open;
-        data.exchangeRate = row.openER;
-        data.margin = row.openMargin;
-        data.pointValue = row.openPV;
-    } else if (type === 'close') {
-        data.price = row.close;
-        data.exchangeRate = row.closeER;
-        // Margin and pointValue are basically only needed on open (positions are never created
-        // on close)
-        data.margin = row.openMargin;
-        data.pointValue = row.openPV;
-    } else {
-        throw `resolveData: type ${type} unknown.`;
-    }
-
-    return data;
-
-};
+});

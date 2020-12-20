@@ -2,6 +2,7 @@
     "parser": "babel-eslint",
     "extends": "@joinbox/joinbox",
     "rules": {
-        "brace-style": [1, "stroustrup"]
+        "brace-style": [1, "stroustrup"],
+        "no-cond-assign": ["error", "except-parens"]
     }
 }

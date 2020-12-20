@@ -1,12 +1,13 @@
 /** 
- * Adds defaults to resolvedData
- * @param {ResolvedData} data
+ * Adds defaults to a bar
+ * @param {object}   data
  */
 export default (data) => {
     const defaults = {
-        exchangeRate: 1,
+        openExchangeRate: 1,
+        closeExchangeRate: 1,
         pointValue: 1,
-        margin: data.price,
+        margin: data.open,
         settleDifference: false,
     };
     return { ...defaults, ...data };

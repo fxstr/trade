@@ -31,12 +31,12 @@ export default ({ orders, positions, resolvedData }) => (
             // Clone existing positions, if they exist
             return {
                 closedPositions: prev.closedPositions,
-                currentPositions: [...prev.currentPositions, ...(existingPositions || [])],
+                currentPositions: [...prev.currentPositions, ...(existingPositions || [])],
             };
         }
 
-        const currentSize = existingPositions.reduce((prev, pos) => prev + pos.size, 0);
-        const enlarge = !currentSize || Math.sign(currentSize) === Math.sign(order.size);
+        const currentSize = existingPositions.reduce((sum, pos) => sum + pos.size, 0);
+        const enlarge = currentSize === 0 || Math.sign(currentSize) === Math.sign(order.size);
 
 
         // To enlarge, we always create a new position. If we didn't, we'd have to update the

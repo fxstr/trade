@@ -16,7 +16,8 @@
   "license": "ISC",
   "devDependencies": {
     "@joinbox/eslint-config-joinbox": "^1.0.8",
-    "ava": "^3.11.0"
+    "ava": "^3.11.0",
+    "babel-eslint": "^10.1.0"
   },
   "dependencies": {
     "debug": "^4.2.0",

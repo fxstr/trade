@@ -5,18 +5,27 @@ import resolveData from '../testData/resolveData.mjs';
 
 
 /**
- * Returns testData grouped by date as an array
+ * Returns a function that returns test data for the next date on every call or undefined if it
+ * is done.
  */
-const createGroupedTestData = () => {
-    const data = createTestData();
-    const grouped = data.reduce((prev, row) => {
-        const date = resolveData(row, 'open').date.getTime();
+const createDataGenerator = () => {
+    let index = 0;
+    const data = createTestData().map(resolveData);
+    // Group data by date
+    const groupedAsMap = data.reduce((prev, row) => {
+        const date = row.date.getTime();
         if (prev.has(date)) prev.get(date).push(row);
         else prev.set(date, [row]);
         return prev;
     }, new Map());
-    return Array.from(grouped.values());
-}
+    const groupedAsArray = Array.from(groupedAsMap.values());
+    return () => {
+        const currentData = groupedAsArray[index];
+        index++;
+        return currentData;
+    };
+
+};
 
 
 /**
@@ -29,84 +38,83 @@ const createPosition = ({
     type,
     originalSize,
     currentSize,
-    currentValue,originalValue,
-}) => {
-    return {
-        barsHeld,
-        date: currentData.date,
-        exchangeRate: currentData[`${type}ER`],
-        initialPosition: {
-            barsHeld: 0,
-            date: originalData.date,
-            exchangeRate: originalData.openER,
-            initialPosition: null,
-            margin: originalData.openMargin,
-            pointValue: originalData.openPV,
-            price: originalData.open,
-            settleDifference: originalData.settleDiff,
-            size: originalSize,
-            symbol: originalData.symbol,
-            type: 'open',
-            value: originalValue,
-        },
-        // In our tests, margin only exists for open
-        margin: currentData.openMargin,
-        // In our tests, pointValue only exists for open
-        pointValue: currentData.openPV,
-        price: currentData[type],
-        settleDifference: currentData.settleDiff,
-        size: currentSize,
-        symbol: currentData.symbol,
-        type: type,
-        value: currentValue,
-    };
-};
+    currentValue,
+    originalValue,
+}) => ({
+    barsHeld,
+    date: currentData.date,
+    initialPosition: {
+        barsHeld: 0,
+        date: originalData.date,
+        exchangeRate: originalData.openExchangeRate,
+        margin: originalData.margin,
+        pointValue: originalData.pointValue,
+        price: originalData.open,
+        settleDifference: originalData.settleDifference,
+        size: originalSize,
+        symbol: originalData.symbol,
+        type: 'open',
+        value: originalValue,
+    },
+    price: currentData[type],
+    size: currentSize,
+    symbol: currentData.symbol,
+    type,
+    exchangeRate: currentData[`${type}ExchangeRate`],
+    value: currentValue,
+});
 
 
 
-test('fails with bad arguments', (t) => {
-    // Data not an array
-    t.throws(() => trade(), {
-        message: /data to be an array, you passed undefined/,
-    });
-    // resolvedData not a function
-    t.throws(() => trade({ data: [] }), {
-        message: /resolveData to be a function, you passed undefined/,
+test('fails with bad arguments', async(t) => {
+    // getData not a function
+    await t.throwsAsync(() => trade(), {
+        message: /getData to be a function, you passed undefined/,
     });
     // createOrders not a function
-    t.throws(() => trade({ data: [], resolveData: () => {} }), {
+    await t.throwsAsync(() => trade({ getData: () => {} }), {
         message: /createOrders to be a function, you passed undefined/,
     });
     // Cash not a number
-    t.throws(() => trade({ data: [], resolveData: () => {}, createOrders: () => {} }), {
+    await t.throwsAsync(() => trade({ getData: () => {}, createOrders: () => {} }), {
         message: /cash to be a number, you passed undefined/,
     });
 });
 
 
-test('fails with invalid returns from callbacks', (t) => {
-    const createArgs = () => ({
-        data: createGroupedTestData(),
-        resolveData,
-        createOrders: () => [],
+test('fails with invalid data from getData function', async(t) => {
+    // Invalid data (not array) returned by getData
+    await t.throwsAsync(() => trade({
+        getData: () => 7,
         cash: 1000,
+        createOrders: () => [],
+    }), {
+        message: /return an array, got 7 instead/,
     });
-    // resolveData does not return an object
-    t.throws(() => trade({ ...createArgs(), resolveData: () => false }), {
-        message: /an object, got false instead/,
+    // Invalid data (array that does not contain objects) returned by getData
+    await t.throwsAsync(() => trade({
+        getData: () => [false],
+        cash: 1000,
+        createOrders: () => [],
+    }), {
+        message: /return an object, got false instead/,
     });
-    // resolveData has missing data on an entry
-    t.throws(() => trade({ ...createArgs(), resolveData: () => ({}) }), {
-        message: /property symbol .* got undefined instead/,
+    // Invalid data (array that does contains invalid objects) returned by getData
+    await t.throwsAsync(() => trade({
+        getData: () => [{}],
+        cash: 1000,
+        createOrders: () => [],
+    }), {
+        message: /property symbol .* got undefined/,
     });
 });
 
 
 
-test('calls createPositions with expected arguments', (t) => {
+test('calls createPositions with expected arguments', async(t) => {
 
-    const data = createGroupedTestData();
     const args = [];
+    const getData = createDataGenerator();
 
     const createOrders = (params) => {
         args.push(params);
@@ -119,29 +127,35 @@ test('calls createPositions with expected arguments', (t) => {
 
     const cash = 1000;
 
-    trade({
-        data,
-        resolveData,
+    await trade({
+        getData,
         createOrders,
         cash,
     });
 
+    const getExpectedData = createDataGenerator();
+    const firstData = [getExpectedData()];
+    const secondData = [getExpectedData(), firstData[0]];
+
     // There is data for 3 dates
     t.is(args.length, 3);
     t.deepEqual(args[0], {
-        data: [data[0]],
+        data: firstData,
         cash: 1000,
         positions: [],
     });
+
+
     t.deepEqual(args[1], {
-        data: [data[1], data[0]],
+        data: secondData,
         cash: 838.8,
         positions: [createPosition({
             barsHeld: 0,
             type: 'close',
             // Position is opened on OPEN of second day
-            originalData: data[1].find(item => item.symbol === 'AAPL'),
-            currentData: data[1].find(item => item.symbol === 'AAPL'),
+            originalData: secondData[0].find(item => item.symbol === 'AAPL'),
+            // Current data is CLOSE on second day (orders are always created on close)
+            currentData: secondData[0].find(item => item.symbol === 'AAPL'),
             originalSize: 2,
             currentSize: 2,
             originalValue: 161.20000000000002,
@@ -152,10 +166,9 @@ test('calls createPositions with expected arguments', (t) => {
 });
 
 
-test('returns expected results', (t) => {
+test.only('returns expected results', async(t) => {
 
-    const data = createGroupedTestData();
-    const args = [];
+    const getData = createDataGenerator();
 
     const createOrders = (params) => {
         const date = params.data[0][0].date.getDate();
@@ -168,22 +181,26 @@ test('returns expected results', (t) => {
             return [{ symbol: 'AAPL', size: -2 }, { symbol: 'AMZN', size: -10 }];
         }
         return [];
-    }
+    };
 
     const cash = 1000;
 
-    const result = trade({
-        data,
-        resolveData,
+    const result = await trade({
+        getData,
         createOrders,
         cash,
     });
 
     t.is(result.length, 3);
 
+    const getExpectedData = createDataGenerator();
+    const first = getExpectedData();
+    const second = getExpectedData();
+    const third = getExpectedData();
+
     // 1st
     t.deepEqual(result[0], {
-        date: data[0][0].date,
+        date: first[0].date,
         orders: [{ symbol: 'AAPL', size: 2 }],
         cash: 1000,
         cost: 0,
@@ -195,7 +212,7 @@ test('returns expected results', (t) => {
 
     // 2nd
     t.deepEqual(result[1], {
-        date: data[1][0].date,
+        date: second[0].date,
         orders: [{ symbol: 'AAPL', size: -2 }, { symbol: 'AMZN', size: -10 }],
         cash: 838.8,
         // Price 12.4, exchange rate 1.3, size 2, pv 10, margin 6.2
@@ -206,8 +223,8 @@ test('returns expected results', (t) => {
             barsHeld: 0,
             type: 'open',
             // Position is opened on OPEN of second day
-            originalData: data[1].find(item => item.symbol === 'AAPL'),
-            currentData: data[1].find(item => item.symbol === 'AAPL'),
+            originalData: second.find(item => item.symbol === 'AAPL'),
+            currentData: second.find(item => item.symbol === 'AAPL'),
             originalSize: 2,
             currentSize: 2,
             originalValue: 161.20000000000002,
@@ -217,8 +234,8 @@ test('returns expected results', (t) => {
             barsHeld: 0,
             type: 'close',
             // Position is opened on OPEN of second day
-            originalData: data[1].find(item => item.symbol === 'AAPL'),
-            currentData: data[1].find(item => item.symbol === 'AAPL'),
+            originalData: second.find(item => item.symbol === 'AAPL'),
+            currentData: second.find(item => item.symbol === 'AAPL'),
             originalSize: 2,
             currentSize: 2,
             originalValue: 161.20000000000002,
@@ -229,19 +246,19 @@ test('returns expected results', (t) => {
 
     // 3rd
     t.deepEqual(result[2], {
-        date: data[2][0].date,
+        date: third[0].date,
         orders: [],
         // AMZN cost 4662, AAPL sold at 134
         cost: 4662 - 134,
         // Previous cash - cost
-        cash: 838.8 - 4662 + 134,
+        cash: (838.8 - 4662) + 134,
         // 2 AAPL at current open prices
         positionsOnOpen: [createPosition({
             barsHeld: 1,
             type: 'open',
             // Position is opened on OPEN of second day
-            originalData: data[1].find(item => item.symbol === 'AAPL'),
-            currentData: data[2].find(item => item.symbol === 'AAPL'),
+            originalData: second.find(item => item.symbol === 'AAPL'),
+            currentData: third.find(item => item.symbol === 'AAPL'),
             originalSize: 2,
             currentSize: 2,
             originalValue: 161.20000000000002,
@@ -257,8 +274,8 @@ test('returns expected results', (t) => {
             barsHeld: 0,
             type: 'open',
             // Position is opened on OPEN of second day
-            originalData: data[2].find(item => item.symbol === 'AMZN'),
-            currentData: data[2].find(item => item.symbol === 'AMZN'),
+            originalData: third.find(item => item.symbol === 'AMZN'),
+            currentData: third.find(item => item.symbol === 'AMZN'),
             originalSize: -10,
             currentSize: -10,
             // -10 * 11.1 * 2.1 * 20
@@ -269,8 +286,8 @@ test('returns expected results', (t) => {
             barsHeld: 0,
             type: 'close',
             // Position is opened on OPEN of second day
-            originalData: data[2].find(item => item.symbol === 'AMZN'),
-            currentData: data[2].find(item => item.symbol === 'AMZN'),
+            originalData: third.find(item => item.symbol === 'AMZN'),
+            currentData: third.find(item => item.symbol === 'AMZN'),
             originalSize: -10,
             currentSize: -10,
             // -10 * 11.1 * 2.1 * 20
@@ -285,8 +302,8 @@ test('returns expected results', (t) => {
         closedPositions: [createPosition({
             barsHeld: 1,
             type: 'open',
-            originalData: data[1].find(item => item.symbol === 'AAPL'),
-            currentData: data[2].find(item => item.symbol === 'AAPL'),
+            originalData: second.find(item => item.symbol === 'AAPL'),
+            currentData: third.find(item => item.symbol === 'AAPL'),
             originalSize: 2,
             currentSize: 2,
             originalValue: 161.20000000000002,

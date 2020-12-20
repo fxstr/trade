@@ -1,5 +1,5 @@
 /**
- * Returns current value of position. 
+ * Returns current value of position.
  * exchangeRate: > 1 if foreign currency has a higher value than base currency.
  * Ignore size and pointValue changes since open – only the current size is relevant.
  * @param {Position} position              See createPosition()
@@ -11,7 +11,7 @@ export default (position, originalPosition) => {
     // Calculation is quite simple:
     // - Original full price paid (i.e. margin, if available; adjusted for exhcange rate and point
     //   value)
-    // - Adjusted for 
+    // - Adjusted for
     //   1. Change in exchange rate (for the whole amount [not only margin] if settleDifference
     //      is false; or only for the margin if settleDifference is true, as only the margin is
     //      exposed to the exchange rate risk)
@@ -23,7 +23,7 @@ export default (position, originalPosition) => {
 
     const pricePaid = originalPosition.margin * originalPosition.pointValue *
         originalPosition.exchangeRate * Math.abs(position.size);
-    
+
     const originalValue = originalPosition.price * originalPosition.pointValue *
         originalPosition.exchangeRate * Math.abs(position.size);
 

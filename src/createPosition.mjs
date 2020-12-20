@@ -1,8 +1,7 @@
 import calculatePositionValue from './calculatePositionValue.mjs';
-import validateResolvedData from './validateResolvedData.mjs';
 import validatePosition from './validatePosition.mjs';
 
-/** 
+/**
  * Creates a correctly formatted position from the parameters provided and calculates current.
  * @param {object} options          Options object
  * @returns {object}
@@ -10,12 +9,10 @@ import validatePosition from './validatePosition.mjs';
 export default ({
     resolvedData,
     size,
+    type,
     initialPosition = null,
     barsHeld = 0,
-    type,
 } = {}) => {
-
-    validateResolvedData(resolvedData);
 
     const {
         date,
@@ -31,18 +28,27 @@ export default ({
     const basePosition = {
         date,
         symbol,
+        type,
         price,
         exchangeRate,
-        pointValue,
-        margin,
-        settleDifference,
         size,
         barsHeld,
-        initialPosition,
-        type,
     };
 
-    const value = calculatePositionValue(basePosition, initialPosition || basePosition);
+    const adjustedInitialPosition = initialPosition || {
+        ...basePosition,
+        // Margin, settleDifference and pointValue are only relevant on inital position (i.e. if
+        // no initial position is provided) and/or not supposed to change afterwards.
+        margin,
+        settleDifference,
+        pointValue,
+    };
+
+    const value = calculatePositionValue(basePosition, adjustedInitialPosition);
+
+    // If no initialPosition was passed, set value on it; it corresponds to the current value
+    // of the position, as it equals initialPosition
+    if (!initialPosition) adjustedInitialPosition.value = value;
 
     // Calculate value depending on initial position if passed, else assume that the current
     // position is the initial position
@@ -51,10 +57,7 @@ export default ({
         value,
         // If position is created (there was no initialPosition passed), use current position
         // as initial position. Adding initialPosition from the beginning reduces special cases.
-        initialPosition: basePosition.initialPosition || {
-            ...basePosition,
-            value,
-        },
+        initialPosition: adjustedInitialPosition,
     };
 
     validatePosition(position);

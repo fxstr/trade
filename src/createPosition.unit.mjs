@@ -24,18 +24,19 @@ test('uses default values', (t) => {
         date: firstRow.date,
         symbol: firstRow.symbol,
         exchangeRate: firstRow.exchangeRate,
-        pointValue: firstRow.pointValue,
-        margin: firstRow.margin,
-        settleDifference: false,
         price: firstRow.price,
         barsHeld,
         type,
-        initialPosition: null,
         value: size * firstRow.margin * firstRow.pointValue * firstRow.exchangeRate,
-    }
+    };
     t.deepEqual(position, {
         ...expectation,
-        initialPosition: expectation,
+        initialPosition: {
+            ...expectation,
+            pointValue: firstRow.pointValue,
+            margin: firstRow.margin,
+            settleDifference: false,
+        },
     });
 });
 
@@ -43,7 +44,7 @@ test('uses default values', (t) => {
 
 
 test('uses initialPosition if present', (t) => {
-    
+
     const data = createTestData();
     const firstRow = resolveData(data[0], 'open');
     const secondRow = resolveData(data[1], 'open');
@@ -61,7 +62,16 @@ test('uses initialPosition if present', (t) => {
         size,
     });
 
-    t.is(position.initialPosition, initialPosition);
-    t.is(position.value, calculatePositionValue(position, initialPosition));
+    t.deepEqual(position, {
+        initialPosition,
+        value: calculatePositionValue(position, initialPosition),
+        date: secondRow.date,
+        symbol: secondRow.symbol,
+        type: 'open',
+        price: secondRow.price,
+        exchangeRate: secondRow.exchangeRate,
+        size,
+        barsHeld: 0,
+    });
 
 });

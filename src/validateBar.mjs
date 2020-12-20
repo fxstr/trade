@@ -7,22 +7,25 @@
 export default (resolvedData) => {
 
     if (typeof resolvedData !== 'object' || resolvedData === null) {
-        throw new Error(`validateResolvedData: Expected resolveData to return an object, got ${JSON.stringify(resolvedData)} instead.`);
+        throw new Error(`validateBar: Expected resolveData to return an object, got ${JSON.stringify(resolvedData)} instead.`);
     }
     
     const properties = [
         ['symbol', symbol => typeof symbol === 'string', 'string'],
         ['date', date => date instanceof Date, 'date'],
-        ['price', price => typeof price === 'number', 'number'],
-        ['exchangeRate', rate => rate === undefined || typeof rate === 'number', 'undefined or number'],
+        ['open', open => typeof open === 'number', 'number'],
+        ['close', close => typeof close === 'number', 'number'],
+        ['openExchangeRate', rate => rate === undefined || typeof rate === 'number', 'undefined or number'],
+        ['closeExchangeRate', rate => rate === undefined || typeof rate === 'number', 'undefined or number'],
         ['pointValue', value => value === undefined || typeof value === 'number',  'undefined or number'],
+        // Margin always relates to open price – as we only open/close positions after open
         ['margin', margin => margin === undefined || typeof margin === 'number',  'undefined or number'],
         ['settleDifference', settle => settle === undefined || typeof settle === 'boolean',  'undefined or boolean'],
     ];
 
     for (const [key, validate, type] of properties) {
         if (!validate(resolvedData[key])) {
-            throw new Error(`validateResolvedData: Expected property ${key} of resolvedData to be ${type}, got ${resolvedData[key]} instead in ${JSON.stringify(resolvedData)}.`)
+            throw new Error(`validateBar: Expected property ${key} of resolvedData to be ${type}, got ${resolvedData[key]} instead in ${JSON.stringify(resolvedData)}.`)
         }
     }
 
