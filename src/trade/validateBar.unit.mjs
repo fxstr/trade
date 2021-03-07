@@ -1,7 +1,7 @@
 import test from 'ava';
 import validateBar from './validateBar.mjs';
-import createTestData from '../testData/createTestData.mjs';
-import resolveData from '../testData/resolveData.mjs';
+import createTestData from '../../testData/createTestData.mjs';
+import resolveData from '../../testData/resolveData.mjs';
 
 test('throws as expected', (t) => {
     t.throws(() => validateBar(null), {

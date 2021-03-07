@@ -2,9 +2,11 @@
   "name": "trader",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "index.mjs",
   "scripts": {
-    "test": "npx ava --verbose --watch"
+    "test": "npx ava --verbose --watch",
+    "docs": "node ./createDocs.mjs",
+    "coverage": "npx c8 ava"
   },
   "ava": {
     "files": [
@@ -15,12 +17,14 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@joinbox/eslint-config-joinbox": "^1.0.8",
-    "ava": "^3.11.0",
-    "babel-eslint": "^10.1.0"
+    "@joinbox/eslint-config-joinbox": "^1.0.9",
+    "ava": "^3.14.0",
+    "babel-eslint": "^10.1.0",
+    "c8": "^7.6.0",
+    "jsdoc-to-markdown": "^7.0.0"
   },
   "dependencies": {
-    "debug": "^4.2.0",
-    "table": "^6.0.3"
+    "debug": "^4.3.1",
+    "table": "^6.0.4"
   }
 }

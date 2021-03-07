@@ -9,5 +9,8 @@ export default (orders) => {
         if (typeof order.size !== 'number') {
             throw new Error(`validateOrders: order must contain a property size which is a number; order ${JSON.stringify(order)} is not valid.`);
         }
+        if (!Number.isFinite(order.size)) {
+            throw new Error(`validateOrders: order's size must be finite, is ${order.size} instead.`);
+        }
     }
-}
+};

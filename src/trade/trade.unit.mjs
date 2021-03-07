@@ -1,15 +1,14 @@
 import test from 'ava';
 import trade from './trade.mjs';
-import createTestData from '../testData/createTestData.mjs';
-import resolveData from '../testData/resolveData.mjs';
+import createTestData from '../../testData/createTestData.mjs';
+import resolveData from '../../testData/resolveData.mjs';
 
 
 /**
  * Returns a function that returns test data for the next date on every call or undefined if it
  * is done.
  */
-const createDataGenerator = () => {
-    let index = 0;
+async function* getData() {
     const data = createTestData().map(resolveData);
     // Group data by date
     const groupedAsMap = data.reduce((prev, row) => {
@@ -19,13 +18,11 @@ const createDataGenerator = () => {
         return prev;
     }, new Map());
     const groupedAsArray = Array.from(groupedAsMap.values());
-    return () => {
-        const currentData = groupedAsArray[index];
-        index++;
-        return currentData;
-    };
-
-};
+    for (const row of groupedAsArray) {
+        await new Promise(resolve => setTimeout(resolve, 1));
+        yield row;
+    }
+}
 
 
 /**
@@ -38,16 +35,19 @@ const createPosition = ({
     type,
     originalSize,
     currentSize,
+    id,
     currentValue,
     originalValue,
 }) => ({
     barsHeld,
     date: currentData.date,
+    id,
     initialPosition: {
         barsHeld: 0,
         date: originalData.date,
         exchangeRate: originalData.openExchangeRate,
         margin: originalData.margin,
+        id,
         pointValue: originalData.pointValue,
         price: originalData.open,
         settleDifference: originalData.settleDifference,
@@ -79,13 +79,24 @@ test('fails with bad arguments', async(t) => {
     await t.throwsAsync(() => trade({ getData: () => {}, createOrders: () => {} }), {
         message: /cash to be a number, you passed undefined/,
     });
+    // historyLength not an integer
+    await t.throwsAsync(() => trade({
+        getData: () => {},
+        createOrders: () => {},
+        cash: 1,
+        historyLength: 1.2,
+    }), {
+        message: /an integer, you passed 1.2 instead/,
+    });
 });
 
 
 test('fails with invalid data from getData function', async(t) => {
     // Invalid data (not array) returned by getData
     await t.throwsAsync(() => trade({
-        getData: () => 7,
+        * getData() {
+            yield 7;
+        },
         cash: 1000,
         createOrders: () => [],
     }), {
@@ -93,7 +104,9 @@ test('fails with invalid data from getData function', async(t) => {
     });
     // Invalid data (array that does not contain objects) returned by getData
     await t.throwsAsync(() => trade({
-        getData: () => [false],
+        * getData() {
+            yield [false];
+        },
         cash: 1000,
         createOrders: () => [],
     }), {
@@ -101,7 +114,9 @@ test('fails with invalid data from getData function', async(t) => {
     });
     // Invalid data (array that does contains invalid objects) returned by getData
     await t.throwsAsync(() => trade({
-        getData: () => [{}],
+        * getData() {
+            yield [{}];
+        },
         cash: 1000,
         createOrders: () => [],
     }), {
@@ -114,7 +129,6 @@ test('fails with invalid data from getData function', async(t) => {
 test('calls createPositions with expected arguments', async(t) => {
 
     const args = [];
-    const getData = createDataGenerator();
 
     const createOrders = (params) => {
         args.push(params);
@@ -123,7 +137,7 @@ test('calls createPositions with expected arguments', async(t) => {
             return [{ symbol: 'AAPL', size: 2 }];
         }
         return [];
-    }
+    };
 
     const cash = 1000;
 
@@ -133,9 +147,10 @@ test('calls createPositions with expected arguments', async(t) => {
         cash,
     });
 
-    const getExpectedData = createDataGenerator();
-    const firstData = [getExpectedData()];
-    const secondData = [getExpectedData(), firstData[0]];
+    const expectedData = getData();
+    const firstData = [(await expectedData.next()).value];
+    const secondData = [(await expectedData.next()).value, ...firstData];
+    const thirdData = [(await expectedData.next()).value, ...secondData];
 
     // There is data for 3 dates
     t.is(args.length, 3);
@@ -157,18 +172,20 @@ test('calls createPositions with expected arguments', async(t) => {
             // Current data is CLOSE on second day (orders are always created on close)
             currentData: secondData[0].find(item => item.symbol === 'AAPL'),
             originalSize: 2,
+            id: 0,
             currentSize: 2,
             originalValue: 161.20000000000002,
             currentValue: 161.20000000000002,
         })],
     });
 
+    // Test if data history is not cropped
+    t.deepEqual(args[2].data, thirdData);
+
 });
 
 
-test.only('returns expected results', async(t) => {
-
-    const getData = createDataGenerator();
+test('returns expected results', async(t) => {
 
     const createOrders = (params) => {
         const date = params.data[0][0].date.getDate();
@@ -193,17 +210,17 @@ test.only('returns expected results', async(t) => {
 
     t.is(result.length, 3);
 
-    const getExpectedData = createDataGenerator();
-    const first = getExpectedData();
-    const second = getExpectedData();
-    const third = getExpectedData();
+    const expectedData = getData();
+    const first = (await expectedData.next()).value;
+    const second = (await expectedData.next()).value;
+    const third = (await expectedData.next()).value;
 
     // 1st
     t.deepEqual(result[0], {
         date: first[0].date,
         orders: [{ symbol: 'AAPL', size: 2 }],
         cash: 1000,
-        cost: 0,
+        cost: 0,        
         positionsOnOpen: [],
         positionsAfterTrade: [],
         positionsOnClose: [],
@@ -227,6 +244,7 @@ test.only('returns expected results', async(t) => {
             currentData: second.find(item => item.symbol === 'AAPL'),
             originalSize: 2,
             currentSize: 2,
+            id: 0,
             originalValue: 161.20000000000002,
             currentValue: 161.20000000000002,
         })],
@@ -238,6 +256,7 @@ test.only('returns expected results', async(t) => {
             currentData: second.find(item => item.symbol === 'AAPL'),
             originalSize: 2,
             currentSize: 2,
+            id: 0,
             originalValue: 161.20000000000002,
             currentValue: 161.20000000000002,
         })],
@@ -261,6 +280,7 @@ test.only('returns expected results', async(t) => {
             currentData: third.find(item => item.symbol === 'AAPL'),
             originalSize: 2,
             currentSize: 2,
+            id: 0,
             originalValue: 161.20000000000002,
             // Now price is 12.3 (-0.1), exchange rate 1.2 (-0.1).
             // Old total value: 1.3 * 12.4 * 2 * 10 = 322.4
@@ -278,6 +298,7 @@ test.only('returns expected results', async(t) => {
             currentData: third.find(item => item.symbol === 'AMZN'),
             originalSize: -10,
             currentSize: -10,
+            id: 1,
             // -10 * 11.1 * 2.1 * 20
             originalValue: 4662,
             currentValue: 4662,
@@ -290,6 +311,7 @@ test.only('returns expected results', async(t) => {
             currentData: third.find(item => item.symbol === 'AMZN'),
             originalSize: -10,
             currentSize: -10,
+            id: 1,
             // -10 * 11.1 * 2.1 * 20
             originalValue: 4662,
             // Opened at 22.1, closed at 22.1 – gain 0.1/contract
@@ -306,6 +328,7 @@ test.only('returns expected results', async(t) => {
             currentData: third.find(item => item.symbol === 'AAPL'),
             originalSize: 2,
             currentSize: 2,
+            id: 0,
             originalValue: 161.20000000000002,
             currentValue: 134,
         })],
@@ -314,64 +337,145 @@ test.only('returns expected results', async(t) => {
 });
 
 
-test('example in code comment works', (t) => {
+test('slices history if configured', async(t) => {
+    const args = [];
 
-    const result = trade({
-        data: [
-            [
-                { date: '2020-01-01', open: 20.5, close: 20.9, symbol: 'AAPL' },
-                { date: '2020-01-01', open: 10.2, close: 10.1, symbol: 'AMZN' },
-            ], [
-                { date: '2020-01-02', open: 20.4, close: 20.7, symbol: 'AAPL' },
-                { date: '2020-01-02', open: 10.3, close: 10.6, symbol: 'AMZN' },
-            ], [
-                { date: '2020-01-03', open: 20.3, close: 20.6, symbol: 'AAPL' },
-                { date: '2020-01-03', open: 10.4, close: 10.5, symbol: 'AMZN' },
-            ]
-        ],
-        // Function that gets an entry of data and is expected to return in a default format
-        // (an object with the mandatory fields symbol (number), price (number) and date (Date))
-        resolveData: (row, type) => {
-            return {
-                symbol: row.symbol,
-                price: row[type],
-                date: new Date(row.date),
-                // You also might return margin (number), exchangeRate (number),
-                // settleDifference (bool) or pointValue (number) here
-            }
-        },
-        // Buy when open is > close, sell when close < open. Use equal position size for all
-        // instruments.
-        createOrders: ({ data, positions, cash }) => {
-            // Get newest data (index 0 is current bar's data, index 1 is previous bar's data)
-            const [current, previous] = data;
-            // If there is no previous data (because we're on the first data) don't trade anything
-            if (!previous) return [];
-            // Store
-            const expectedPositions = [];
-            // Go through all current data and get data for the same instrument on previous bar
-            for (const instrumentData of current) {
-                const { symbol } = instrumentData;
-                const previousInstrumentData = previous.find(item => item.symbol === symbol);
-                if (previousInstrumentData && previousInstrumentData.close < instrumentData.close) {
-                    expectedPositions.push({ data: instrumentData, type: 'long' });
-                }
-                else if (previousInstrumentData && previousInstrumentData.close > instrumentData.close) {
-                    expectedPositions.push({ data: instrumentData, type: 'short' });
-                }
-            }
-            // Get amount of money available (cash plus all positions)
-            const available = cash + positions.reduce((prev, pos) => prev + pos.value, 0);
-            const moneyPerPosition = available / expectedPositions.length;
-            for (const position of expectedPositions) {
-                const direction = position.type === 'short' ? -1 : 1;
-                position.size = Math.floor(moneyPerPosition / position.data.close) * direction;
-            }
-            return expectedPositions.map(pos => ({ symbol: pos.data.symbol, size: pos.size }));
-        },
-        // Trade with an initial amount of 10'000
-        cash: 10 ** 4,
+    const createOrders = (params) => {
+        args.push(params);
+        return [];
+    };
+    const cash = 1000;
+
+    await trade({
+        getData,
+        createOrders,
+        cash,
+        historyLength: 1,
     });
+
+    let lastData = null;
+    for await (const result of getData()) {
+        lastData = result;
+    }
+
+    // data of last run only corresponds to most recent (last) data set, contains no history
+    t.is(args[2].data.length, 1);
+    t.deepEqual(args[2].data, [lastData]);
+
+});
+
+
+test('accepts history of length 0', async(t) => {
+    const args = [];
+
+    const createOrders = (params) => {
+        args.push(params);
+        return [];
+    };
+    const cash = 1000;
+
+    await trade({
+        getData,
+        createOrders,
+        cash,
+        historyLength: 0,
+    });
+
+    // data of last run only corresponds to most recent (last) data set, contains no history
+    console.log('data', args[2].data);
+    t.is(args[2].data.length, 0);
+
+});
+
+
+test('example in code comment works', async(t) => {
+
+
+    /**
+     * Get your data from any source you like – a web service, a CSV file, a database. The structure
+     * does not matter: if needed, you can transform it in the getData function.
+     */
+    const data = [
+        [
+            { date: '2020-01-01', open: 20.5, close: 20.9, symbol: 'AAPL' },
+            { date: '2020-01-01', open: 10.2, close: 10.1, symbol: 'AMZN' },
+        ], [
+            { date: '2020-01-02', open: 20.4, close: 20.7, symbol: 'AAPL' },
+            { date: '2020-01-02', open: 10.3, close: 10.6, symbol: 'AMZN' },
+        ], [
+            { date: '2020-01-03', open: 20.3, close: 20.6, symbol: 'AAPL' },
+            { date: '2020-01-03', open: 10.4, close: 10.5, symbol: 'AMZN' },
+        ]
+    ];
+
+    /**
+     * The trade function expects an async generator as argument. Every bar (e.g. day for daily
+     * data) should yield and contain one object per instrument.
+     */
+    async function* getData() {
+        for (const barData of data) {
+            // The trade function expects all dates to be JavaScript dates; convert strings to
+            // dates
+            const parsedData = barData.map(item => ({ ...item, date: new Date(item.date) }));
+            yield parsedData;
+        }
+    }
+
+
+    /**
+     * Create orders is a callback function that will be called by the trade function. Return
+     * your orders for the current bar.
+     * In this case, we
+     * - buy when open is > close, sell when close < open
+     * - use equal position size for all instruments
+     */
+    const createOrders = ({ data, positions, cash }) => {
+        // Get newest data (index 0 is current bar's data, index 1 is previous bar's data)
+        const [current, previous] = data;
+
+        // If there is no previous data (because we're on the first data) don't trade anything:
+        // return empty orders.
+        if (!previous) return [];
+
+        // Store the instruments that we want to have long or short positions of
+        const expectedPositions = [];
+
+        // Go through all current data and get data for the same instrument on previous bar
+        for (const instrumentData of current) {
+            const { symbol } = instrumentData;
+            // Get previous bar's data for the current symbol
+            const previousInstrumentData = previous.find(item => item.symbol === symbol);
+            // If there is no data for the previous bar, we don't take or hold a position
+            if (!previousInstrumentData) continue;
+            // Direction is -1 for short and 1 for long
+            const direction = instrumentData.close > previousInstrumentData.close ? 1 : -1;
+            expectedPositions.push({ data: instrumentData, direction });
+        }
+
+        // Get amount of money available (cash plus value of all all open positions)
+        const available = cash + positions.reduce((prev, pos) => prev + pos.value, 0);
+        // Divide money equally by all positions we are expected to hold
+        const moneyPerPosition = available / expectedPositions.length;
+        // Calculate position size for every symbol we hold
+        const orders = expectedPositions.map(position => ({
+            symbol: position.data.symbol,
+            size: Math.floor(moneyPerPosition / position.data.close) * position.direction,
+        }));
+        return orders;
+    };
+
+
+    // Start with cash of 10.000
+    const cash = 10 ** 4;
+
+
+    const result = await trade({
+        getData,
+        createOrders,
+        cash,
+    });
+
+
 
 
     t.is(result.length, 3);
@@ -387,5 +491,7 @@ test('example in code comment works', (t) => {
         { symbol: 'AAPL', size: -242 },
         { symbol: 'AMZN', size: -474 },
     ]);
- 
+
+    // console.log(JSON.stringify(result, null, 2));
+
 });

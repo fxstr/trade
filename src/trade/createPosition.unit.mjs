@@ -1,8 +1,15 @@
 import test from 'ava';
-import createTestData from '../testData/createTestData.mjs';
-import resolveData from '../testData/resolveData.mjs';
+import createTestData from '../../testData/createTestData.mjs';
+import resolveData from '../../testData/resolveData.mjs';
 import createPosition from './createPosition.mjs';
 import calculatePositionValue from './calculatePositionValue.mjs';
+
+test('throws if id and initialPosition are passed', (t) => {
+    t.throws(() => createPosition({ id: 5, initialPosition: {}, resolvedData: {} }), {
+        message: /parameter id 5/,
+    });
+});
+
 
 test('uses default values', (t) => {
 
@@ -17,6 +24,7 @@ test('uses default values', (t) => {
         size,
         barsHeld,
         type,
+        id: 3,
     });
     const expectation = {
         size,
@@ -28,6 +36,7 @@ test('uses default values', (t) => {
         barsHeld,
         type,
         value: size * firstRow.margin * firstRow.pointValue * firstRow.exchangeRate,
+        id: 3,
     };
     t.deepEqual(position, {
         ...expectation,
@@ -54,6 +63,7 @@ test('uses initialPosition if present', (t) => {
         resolvedData: firstRow,
         size,
         type: 'open',
+        id: 2,
     });
     const position = createPosition({
         resolvedData: secondRow,
@@ -71,6 +81,7 @@ test('uses initialPosition if present', (t) => {
         price: secondRow.price,
         exchangeRate: secondRow.exchangeRate,
         size,
+        id: 2,
         barsHeld: 0,
     });
 

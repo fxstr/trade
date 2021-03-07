@@ -9,7 +9,7 @@ export default (resolvedData) => {
     if (typeof resolvedData !== 'object' || resolvedData === null) {
         throw new Error(`validateBar: Expected resolveData to return an object, got ${JSON.stringify(resolvedData)} instead.`);
     }
-    
+
     const properties = [
         ['symbol', symbol => typeof symbol === 'string', 'string'],
         ['date', date => date instanceof Date, 'date'],

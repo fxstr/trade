@@ -1,7 +1,7 @@
 import test from 'ava';
 import updatePrices from './updatePrices.mjs';
-import createTestData from '../testData/createTestData.mjs';
-import resolveData from '../testData/resolveData.mjs';
+import createTestData from '../../testData/createTestData.mjs';
+import resolveData from '../../testData/resolveData.mjs';
 import createPosition from './createPosition.mjs';
 
 
@@ -15,12 +15,14 @@ test('updates positions for close by default', (t) => {
     const aaplPos = createPosition({
         resolvedData: resolveData(aapl[0], type),
         size: 4,
-        type: type,
+        type,
+        id: 0,
     });
     const amznPos = createPosition({
         resolvedData: resolveData(amzn[0], type),
         size: 3,
-        type: type,
+        type,
+        id: 1,
     });
 
     const result = updatePrices({
@@ -37,7 +39,7 @@ test('updates positions for close by default', (t) => {
             initialPosition: aaplPos.initialPosition,
         }),
         amznPos,
-    ])
+    ]);
 
 });
 
@@ -52,7 +54,8 @@ test('adds bar if type is open', (t) => {
     const aaplPos = createPosition({
         resolvedData: resolveData(aapl[0], type),
         size: 4,
-        type: type,
+        type,
+        id: 0,
     });
 
     const result = updatePrices({
@@ -68,7 +71,8 @@ test('adds bar if type is open', (t) => {
             type,
             initialPosition: aaplPos.initialPosition,
             barsHeld: 1,
+            id: 0,
         }),
-    ])
+    ]);
 
 });

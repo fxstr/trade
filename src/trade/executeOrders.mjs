@@ -7,16 +7,22 @@ import createPosition from './createPosition.mjs';
  * - creates a new position (when no position in the given direction existed)
  * Data for current bar is needed as orders can only be created if current bar contains data for
  * the given instrument.
- * @param {object} options 
+ * @param {object} options
  * @param {Order[]} options.orders               Array of orders for current bar
  * @param {Position[]} options.positions         Currently existing positions
  * @param {object[]} options.resolvedData        Resolved data for current bar
+ * @param {function} options.createId            A function that returns a new ID with every call
  */
-export default ({ orders, positions, resolvedData }) => (
+export default ({
+    orders,
+    positions,
+    resolvedData,
+    createId,
+} = {}) => (
 
     orders.reduce((prev, order) => {
 
-        // Get existing position for order's symbol, clone them
+        // Get existing position for order's symbol, clone their content
         const existingPositions = positions
             .filter(pos => pos.symbol === order.symbol)
             .map(pos => ({ ...pos }));
@@ -32,6 +38,8 @@ export default ({ orders, positions, resolvedData }) => (
             return {
                 closedPositions: prev.closedPositions,
                 currentPositions: [...prev.currentPositions, ...(existingPositions || [])],
+                ordersNotExecuted: [...prev.ordersNotExecuted, order],
+                ordersExecuted: prev.ordersExecuted,
             };
         }
 
@@ -47,6 +55,7 @@ export default ({ orders, positions, resolvedData }) => (
                 resolvedData: dataForCurrentSymbol,
                 // Orders are always executed on open
                 type: 'open',
+                id: createId(),
             });
             return {
                 closedPositions: prev.closedPositions,
@@ -55,6 +64,8 @@ export default ({ orders, positions, resolvedData }) => (
                     ...(existingPositions || []),
                     newPosition,
                 ],
+                ordersExecuted: [...prev.ordersExecuted, order],
+                ordersNotExecuted: prev.ordersNotExecuted,
             };
         }
 
@@ -64,11 +75,11 @@ export default ({ orders, positions, resolvedData }) => (
         else {
 
             // Close old positions first; sort sorts in place
-            const sortedPositions = [...existingPositions].sort((a, b) => b.barsHeld - a.barsHeld)
+            const sortedPositions = [...existingPositions].sort((a, b) => b.barsHeld - a.barsHeld);
 
             // Go through all positions for symbol; reduce, close or keep where necessary,
             // starting with oldest position first
-            const { closed, current, reducedBy } = sortedPositions.reduce((adjusted, position) => {
+            const { closed, current, reducedBy } = sortedPositions.reduce((adjusted, position) => {
 
                 // Close position as previous position's and its size are smaller than the order's
                 // size
@@ -86,7 +97,7 @@ export default ({ orders, positions, resolvedData }) => (
                 // order's size
                 else if (adjusted.reducedBy + Math.abs(position.size) > Math.abs(order.size)) {
                     // New position size will be the size of the whole order minus the size of
-                    // the previously closed positions. The position's sign will be the opposite 
+                    // the previously closed positions. The position's sign will be the opposite
                     // of order's sign (as the position is reduced).
                     const closedPositionSize = (Math.abs(order.size) - adjusted.reducedBy) *
                         Math.sign(order.size) * -1;
@@ -114,7 +125,7 @@ export default ({ orders, positions, resolvedData }) => (
                             }),
                         ],
                         reducedBy: adjusted.reducedBy + Math.abs(order.size),
-                    }
+                    };
                 }
 
                 // Position can stay as it is
@@ -123,7 +134,7 @@ export default ({ orders, positions, resolvedData }) => (
                         current: [...adjusted.current, position],
                         closed: adjusted.closed,
                         reducedBy: adjusted.reducedBy,
-                    }
+                    };
                 }
             }, { reducedBy: 0, closed: [], current: [] });
 
@@ -135,13 +146,16 @@ export default ({ orders, positions, resolvedData }) => (
                     resolvedData: dataForCurrentSymbol,
                     type: 'open',
                     size: (Math.abs(order.size) - reducedBy) * Math.sign(order.size),
+                    id: createId(),
                 }));
             }
 
             return {
                 currentPositions: [...prev.currentPositions, ...current, ...newPositions],
                 closedPositions: [...prev.closedPositions, ...closed],
-            }
+                ordersNotExecuted: prev.ordersNotExecuted,
+                ordersExecuted: [...prev.ordersExecuted, order],
+            };
 
         }
 
@@ -150,6 +164,8 @@ export default ({ orders, positions, resolvedData }) => (
         currentPositions: positions
             .filter(position => !orders.map(({ symbol }) => symbol).includes(position.symbol)),
         closedPositions: [],
+        ordersExecuted: [],
+        ordersNotExecuted: [],
     })
 
 );

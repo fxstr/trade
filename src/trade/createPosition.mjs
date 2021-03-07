@@ -12,6 +12,7 @@ export default ({
     type,
     initialPosition = null,
     barsHeld = 0,
+    id,
 } = {}) => {
 
     const {
@@ -24,6 +25,12 @@ export default ({
         settleDifference,
     } = resolvedData;
 
+    if (id && initialPosition) {
+        throw new Error(`createPosition: Unexpected parameter id ${id} as initialPosition is set to ${initialPosition}.`);
+    }
+
+    const positionId = id ?? initialPosition.id;
+
     // Create base position to calculate value from
     const basePosition = {
         date,
@@ -33,6 +40,7 @@ export default ({
         exchangeRate,
         size,
         barsHeld,
+        id: positionId,
     };
 
     const adjustedInitialPosition = initialPosition || {

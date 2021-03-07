@@ -1,7 +1,7 @@
 import test from 'ava';
 import normalizeData from './normalizeData.mjs';
-import createTestData from '../testData/createTestData.mjs';
-import resolveData from '../testData/resolveData.mjs';
+import createTestData from '../../testData/createTestData.mjs';
+import resolveData from '../../testData/resolveData.mjs';
 
 test('throws with invalid arguments', (t) => {
     t.throws(() => normalizeData(), {

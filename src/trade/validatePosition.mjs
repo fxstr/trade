@@ -7,7 +7,8 @@ export default (position) => {
         ['type', value => ['open', 'close'].includes(value), 'string with value \'open\' or \'close\''],
         ['size', value => typeof value === 'number', 'number'],
         ['barsHeld', value => typeof value === 'number', 'number'],
-    ]
+        ['id', value => value !== undefined && value !== null, 'set'],
+    ];
 
     for (const [key, validate, type] of properties) {
         if (!validate(position[key])) {
