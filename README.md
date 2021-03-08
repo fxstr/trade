@@ -55,7 +55,7 @@ See the [API documentation](./src/trade/trade.md).
      * The trade function expects an async generator as argument. Every bar (e.g. day for daily
      * data) should yield and contain one object per instrument.
      */
-    tradefunction* getData() {
+    function* getData() {
         for (const barData of data) {
             // The trade function expects all dates to be JavaScript dates; convert strings to
             // dates
