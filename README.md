@@ -32,6 +32,8 @@ See the [API documentation](./src/trade/trade.md).
 
 ```javascript
 
+    import { trade } from 'backtest';
+
     /**
      * Get your data from any source you like – a web service, a CSV file, a database. The structure
      * does not matter: if needed, you can transform it in the getData function.
@@ -53,7 +55,7 @@ See the [API documentation](./src/trade/trade.md).
      * The trade function expects an async generator as argument. Every bar (e.g. day for daily
      * data) should yield and contain one object per instrument.
      */
-    async function* getData() {
+    function* getData() {
         for (const barData of data) {
             // The trade function expects all dates to be JavaScript dates; convert strings to
             // dates

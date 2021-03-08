@@ -12,6 +12,9 @@ import generateId from './generateId.mjs';
 const log = debug('WalkForward');
 const createTable = table.table;
 
+// TODO: All exported functions
+// UI for reports
+// Document imports
 
 /**
  * A single order object that may be returned by the createOrder parameter in {@link trade}.
@@ -83,8 +86,9 @@ const createTable = table.table;
  * environment variable `DEBUG` to `WalkForward:*` to see what's happening behind the scenes:
  * `export DEBUG=WalkForward:*`
  *
- * @param {function} getData            Async or synchronous generator function that returns an
- *                                      array with any amount of BarData entries.
+ * @param {function} getData            Async or synchronous generator function that yields an
+ *                                      array with any amount of {@link BarData} entries for every
+ *                                      bar (with data available).
  *
  * @param {function} createOrders       Callback function that will be called for every bar
  *                                      returned by getData.

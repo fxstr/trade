@@ -1,7 +1,8 @@
 {
-  "name": "trader",
+  "name": "trade",
   "version": "1.0.0",
-  "description": "",
+  "description": "A JavaScript backtesting library to validate trading strategies for stocks, futures, crypto currencies etc. based on historical data.",
+  "keywords": ["backtest", "trade", "trading", "trading strategy", "algotrading", "backtesting", "stocks", "futures", "crypto currencies", "technical analysis"],
   "main": "index.mjs",
   "scripts": {
     "test": "npx ava --verbose --watch",

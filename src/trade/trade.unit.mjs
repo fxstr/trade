@@ -412,7 +412,7 @@ test('example in code comment works', async(t) => {
      * The trade function expects an async generator as argument. Every bar (e.g. day for daily
      * data) should yield and contain one object per instrument.
      */
-    async function* getData() {
+    function* getData() {
         for (const barData of data) {
             // The trade function expects all dates to be JavaScript dates; convert strings to
             // dates
