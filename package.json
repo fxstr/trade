@@ -1,6 +1,6 @@
 {
   "name": "trade",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A JavaScript backtesting library to validate trading strategies for stocks, futures, crypto currencies etc. based on historical data.",
   "keywords": [
     "backtest",
