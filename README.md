@@ -24,7 +24,7 @@ See the [API documentation](./src/trade/trade.md).
 
 ## Install
 
-- Install through npm: `npm i -S dataseries`
+- Install through npm: `npm i -S backtest`
 - Requires Node 12 (for private class fields)
 
 
