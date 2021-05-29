@@ -7,8 +7,17 @@
  *                              included in the returned dataset
  * @param {number} maxLength    Length after which the dataset for every instrument will be cut
  * @param {*} columnField       Field of rows by which columns should be grouped
+ * @returns {object[][]}        Array with one entry for every instrument; consists of an array
+ *                              (one item per bar) of objects which correspond to the data provided
+ *                              (with open, close etc.). Oldest bar comes first (data order is
+ *                              chronological).
  */
-export default ({ data, minLength = 0, maxLength = Infinity, columnField = 'symbol' }) => {
+export default ({
+    data,
+    minLength = 0,
+    maxLength = Infinity,
+    columnField = 'symbol'
+}) => {
 
     const columns = new Map();
     const [firstRow] = data;

@@ -46,7 +46,7 @@ export default ({
     const adjustedInitialPosition = initialPosition || {
         ...basePosition,
         // Margin, settleDifference and pointValue are only relevant on inital position (i.e. if
-        // no initial position is provided) and/or not supposed to change afterwards.
+        // no initial position is provided) because they are not supposed to change afterwards.
         margin,
         settleDifference,
         pointValue,

@@ -40,4 +40,4 @@ export default (position, originalPosition) => {
 
     return pricePaid + absoluteExchangeRateChange + priceChange; 
 
-}
+};

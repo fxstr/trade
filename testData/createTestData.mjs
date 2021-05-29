@@ -20,7 +20,7 @@ export default () => {
             else value = parseFloat(col);
             return {
                 ...prev,
-                [colName]: value
+                [colName]: value,
             };
         }, {});
     });

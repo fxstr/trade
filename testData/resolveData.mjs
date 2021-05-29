@@ -1,8 +1,7 @@
 /**
  * Formats data for use in trade.js (and most other functions)
  */
-export default (row) => ({
-
+export default row => ({
     date: row.date,
     symbol: row.symbol,
     settleDifference: row.settleDiff,
@@ -11,7 +10,5 @@ export default (row) => ({
     openExchangeRate: row.openER,
     margin: row.openMargin,
     pointValue: row.openPV,
-    close: row.close,
     closeExchangeRate: row.closeER,
-
 });

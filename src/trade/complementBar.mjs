@@ -1,4 +1,4 @@
-/** 
+/**
  * Adds defaults to a bar
  * @param {object}   data
  */

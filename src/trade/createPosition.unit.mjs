@@ -11,7 +11,7 @@ test('throws if id and initialPosition are passed', (t) => {
 });
 
 
-test('uses default values', (t) => {
+test('uses values passed', (t) => {
 
     const data = createTestData();
     const firstRow = resolveData(data[0], 'open');
@@ -48,7 +48,6 @@ test('uses default values', (t) => {
         },
     });
 });
-
 
 
 
