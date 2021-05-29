@@ -12,9 +12,9 @@ import generateId from './generateId.mjs';
 const log = debug('WalkForward');
 const createTable = table.table;
 
-// TODO: All exported functions
+// TODO: Document all exported functions
 // UI for reports
-// Document imports
+// Calculate order size correctly (diff, not absolute) in example code
 
 /**
  * A single order object that may be returned by the createOrder parameter in {@link trade}.
@@ -39,8 +39,8 @@ const createTable = table.table;
  *                                          are 5000 bushels/contract, a tick  is 1/4 cent per
  *                                          bushel. Point value is therefore $12.50 (one point in
  *                                          the position's direction equals 5000 bushels * $0.0025)
- * @property {number} margin                Rleative margin of the current symbol (e.g. 0.3 for a
- *                                          30% margin)
+ * @property {number} margin                Absolute margin value; if price is is e.g. 60 and
+ *                                          relative margin is 40%, pass 24.
  * @property {boolean} settleDifference     True if exchange rate should only be applied to the
  *                                          margin, not the whole position. This is especially the
  *                                          case for futures.
@@ -101,33 +101,45 @@ const createTable = table.table;
  *                                      yielded by the getData parameter. Every entry corresponds
  *                                      to a bar, when the first entry (0) is the youngest bar. If
  *                                      `historyLength` is set, the length of the parameter will be
- *                                      limited to `historyLenght`.
+ *                                      limited to `historyLength`.
  *                                      The craeteOrders function is expected to return an array
  *                                      of ({@link Order}).
  *
  * @param {number} cash                 Initial cash
  *
- * @param {number} historyLength        Length of data history that should be passed when calling
- *                                      createOrders. Can be limited to prevent memory overflows
- *                                      (as all data history is kept in memory, if not
+ * @param {number} [historyLength=Infinity]   Length of data history that should be passed when
+ *                                      calling createOrders. Can be limited to prevent memory
+ *                                      overflows (as all data history is kept in memory if not
  *                                      explicitly reduced through historyLength; this parameter
  *                                      is especially useful for long data series and/or high
- *                                      resolution data).
+ *                                      resolution data). Defaults to Infinity.
+ * @param {object} [parameters={}]      Parameters for the current run; they are just added to
+ *                                      the object returned by the function and have no further
+ *                                      implication.
  *
- * @returns {object[]}                  Array with one entry per bar (same length as param data
- *                                      had). Every entry is an object with
+ * @returns {{parameters: object, result: object[], generator: object}}
+ *                                      - parameters: Object that was passed as argument named
+ *                                        `parameters`.
+ *                                      - generator: Contains data about the software that was used
+ *                                        to create the returned data. In this case: {
+ *                                          name: 'trade',
+ *                                          version: 1, // File format version
+ *                                          url: 'https://github.com/fxstr/trade',
+ *                                        }
+ *                                      - result: Array with one entry per bar (same length as
+ *                                      param `data` had). Every entry is an object with
  *                                      - date (Date)
  *                                      - orders ({@link Order}[])
  *                                      - cash (number)
  *                                      - cost (number)
- *                                      - positionsOnOpen ({@link Object}[]); positions from the
+ *                                      - positionsOnOpen ({@link Position}[]); positions from the
  *                                        previous bar, as no trades were yet made (price is the
  *                                        open price)
- *                                      - positionsAfterTrade ({@link Object}[]); positions as they
+ *                                      - positionsAfterTrade ({@link Position}[]); positions as they
  *                                        existed right after the trade (price is the open price)
- *                                      - positionsOnClose ({@link Object}[]); positions when the
+ *                                      - positionsOnClose ({@link Position}[]); positions when the
  *                                        bar closes (price is the close price)
- *                                      - closedPositions ({@link Object}[]); positions that were
+ *                                      - closedPositions ({@link Position}[]); positions that were
  *                                        closed on the current bar and will not exist any more on
  *                                        next bar
  */
@@ -136,6 +148,7 @@ async function trade({
     createOrders,
     cash,
     historyLength = Infinity,
+    parameters = [{}],
 } = {}) {
 
 
@@ -222,8 +235,9 @@ async function trade({
         );
 
         // 3. Get money that was used to execute orders
-        const currentValue = currentPositions.reduce((prev, { value }) => prev + value, 0);
-        const previousValue = positionsOnOpen.reduce((prev, { value }) => prev + value, 0);
+        const sumUp = (prev, { value }) => prev + value;
+        const currentValue = currentPositions.reduce(sumUp, 0);
+        const previousValue = positionsOnOpen.reduce(sumUp, 0);
         const cost = currentValue - previousValue;
         const currentCash = previous.cash - cost;
 
@@ -247,7 +261,8 @@ async function trade({
         );
 
         // Add current bars (unmodified originals) to all bars; slice if user passed the
-        // corresponding option
+        // corresponding option. Clone data to discard modifications that a user might have made
+        // when consuming the bars.
         allBars = [bars, ...allBars].slice(0, historyLength);
 
         // 2. Generate orders
@@ -276,9 +291,17 @@ async function trade({
 
     }
 
-    return result;
+    return {
+        parameters,
+        generator: {
+            name: 'trade',
+            version: 1,
+            url: 'https://github.com/fxstr/trade',
+        },
+        result,
+    };
 
-};
+}
 
 // Function name and export below are needed for a somewhat usable JSDoc output
 export default trade;

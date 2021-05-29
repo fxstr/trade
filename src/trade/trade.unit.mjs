@@ -202,7 +202,7 @@ test('returns expected results', async(t) => {
 
     const cash = 1000;
 
-    const result = await trade({
+    const { result } = await trade({
         getData,
         createOrders,
         cash,
@@ -337,6 +337,30 @@ test('returns expected results', async(t) => {
 });
 
 
+test('returns parameters', async(t) => {
+    const parameters = { a: 5, b: 3 };
+    const { parameters: returnedParameters } = await trade({
+        getData,
+        createOrders: () => [],
+        cash: 1000,
+        parameters,
+    });
+    t.is(returnedParameters, parameters);
+});
+
+
+test('returns generator', async(t) => {
+    const { generator } = await trade({
+        getData,
+        createOrders: () => [],
+        cash: 1000,
+    });
+    t.is(generator.name, 'trade');
+    t.is(generator.version, 1);
+    t.is(generator.url, 'https://github.com/fxstr/trade');
+});
+
+
 test('slices history if configured', async(t) => {
     const args = [];
 
@@ -382,7 +406,6 @@ test('accepts history of length 0', async(t) => {
     });
 
     // data of last run only corresponds to most recent (last) data set, contains no history
-    console.log('data', args[2].data);
     t.is(args[2].data.length, 0);
 
 });
@@ -409,7 +432,7 @@ test('example in code comment works', async(t) => {
     ];
 
     /**
-     * The trade function expects an async generator as argument. Every bar (e.g. day for daily
+     * The trade function expects an (async) generator as argument. Every bar (e.g. day for daily
      * data) should yield and contain one object per instrument.
      */
     function* getData() {
@@ -457,10 +480,16 @@ test('example in code comment works', async(t) => {
         // Divide money equally by all positions we are expected to hold
         const moneyPerPosition = available / expectedPositions.length;
         // Calculate position size for every symbol we hold
-        const orders = expectedPositions.map(position => ({
-            symbol: position.data.symbol,
-            size: Math.floor(moneyPerPosition / position.data.close) * position.direction,
-        }));
+        const orders = expectedPositions.map((position) => {
+            const currentPosition = positions.find(({ symbol }) => symbol === position.symbol);
+            const currentSize = currentPosition?.size || 0;
+            const newSize = Math.floor(moneyPerPosition / position.data.close) * position.direction;
+            const size = newSize - currentSize;
+            return {
+                symbol: position.data.symbol,
+                size,
+            };
+        });
         return orders;
     };
 
@@ -469,12 +498,12 @@ test('example in code comment works', async(t) => {
     const cash = 10 ** 4;
 
 
-    const result = await trade({
+    const returnValue = await trade({
         getData,
         createOrders,
         cash,
     });
-
+    const { result } = returnValue;
 
 
 
@@ -492,6 +521,6 @@ test('example in code comment works', async(t) => {
         { symbol: 'AMZN', size: -474 },
     ]);
 
-    // console.log(JSON.stringify(result, null, 2));
+    // console.log(JSON.stringify(returnValue, null, 2));
 
 });
