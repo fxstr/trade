@@ -19,13 +19,13 @@ the resulting positions. Those can be used to generate trading reports.
 
 ## Documentation
 
-See the [API documentation](./src/trade/trade.md).
+See the [API documentation](src/trade/trade.md).
 
 
 ## Install
 
-- Install through npm: `npm i -S backtest`
-- Requires Node 12 (for private class fields)
+- Install through npm: `npm i -S trade`
+- Requires Node.js >= 12
 
 
 ## Example
@@ -52,7 +52,7 @@ See the [API documentation](./src/trade/trade.md).
     ];
 
     /**
-     * The trade function expects an async generator as argument. Every bar (e.g. day for daily
+     * The trade function expects an (async) generator as argument. Every bar (e.g. day for daily
      * data) should yield and contain one object per instrument.
      */
     function* getData() {
@@ -100,10 +100,16 @@ See the [API documentation](./src/trade/trade.md).
         // Divide money equally by all positions we are expected to hold
         const moneyPerPosition = available / expectedPositions.length;
         // Calculate position size for every symbol we hold
-        const orders = expectedPositions.map(position => ({
-            symbol: position.data.symbol,
-            size: Math.floor(moneyPerPosition / position.data.close) * position.direction,
-        }));
+        const orders = expectedPositions.map((position) => {
+            const currentPosition = positions.find(({ symbol }) => symbol === position.symbol);
+            const currentSize = (currentPosition && currentPosition.size) || 0;
+            const newSize = Math.floor(moneyPerPosition / position.data.close) * position.direction;
+            const orderSize = newSize - currentSize;
+            return {
+                symbol: position.data.symbol,
+                size: orderSize,
+            };
+        });
         return orders;
     };
 
