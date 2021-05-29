@@ -11,9 +11,24 @@ const setup = () => {
     const type = 'open';
 
     const positions = [
-        createPosition({ resolvedData: resolveData(data[0], type), size: 2, type, id: 0 }),
-        createPosition({ resolvedData: resolveData(data[1], type), size: 3, type, id: 1 }),
-        createPosition({ resolvedData: resolveData(data[2], type), size: -4, type, id: 2 }),
+        createPosition({
+            resolvedData: resolveData(data[0], type),
+            size: 2,
+            type,
+            id: 0,
+        }),
+        createPosition({
+            resolvedData: resolveData(data[1], type),
+            size: 3,
+            type,
+            id: 1,
+        }),
+        createPosition({
+            resolvedData: resolveData(data[2], type),
+            size: -4,
+            type,
+            id: 2,
+        }),
     ];
 
     const resolvedData = [
@@ -24,7 +39,7 @@ const setup = () => {
     const generateId = () => {
         let id = 0;
         return () => id++;
-    }
+    };
 
     return { positions, resolvedData, generateId };
 
@@ -160,13 +175,13 @@ test('reduces position', (t) => {
                 resolvedData: resolvedData.find(item => item.symbol === 'AAPL'),
                 size: 2,
                 type: 'open',
-                initialPosition: positions[1],
+                initialPosition: positions[1].initialPosition,
             }),
             createPosition({
                 resolvedData: resolvedData.find(item => item.symbol === 'AMZN'),
                 size: -2,
                 type: 'open',
-                initialPosition: positions[2],
+                initialPosition: positions[2].initialPosition,
             }),
         ],
         currentPositions: [
@@ -177,14 +192,14 @@ test('reduces position', (t) => {
                 resolvedData: resolvedData.find(item => item.symbol === 'AAPL'),
                 // Older (first) position was removed completely; younger (second) position
                 // was reduced and stays on as initialPosition
-                initialPosition: positions[1],
+                initialPosition: positions[1].initialPosition,
             }),
             // AMZN
             createPosition({
                 size: -2,
                 type: 'open',
                 resolvedData: resolvedData.find(item => item.symbol === 'AMZN'),
-                initialPosition: positions[2],
+                initialPosition: positions[2].initialPosition,
             }),
         ],
         ordersNotExecuted: [],
@@ -230,5 +245,22 @@ test('turns positions', (t) => {
         ordersNotExecuted: [],
         ordersExecuted: orders,
     });
+});
+
+
+test('throws on multiple orders of the same instrument', (t) => {
+    const { resolvedData, positions, generateId } = setup();
+    const orders = [{ symbol: 'AAPL', size: -4 }, { symbol: 'AAPL', size: -3 }];
+
+    const execute = () => executeOrders({
+        orders,
+        positions,
+        resolvedData,
+        createId: generateId(),
+    });
+    t.throws(execute, {
+        message: /one order per symbol; AAPL .* orders: \[\{"symbol":"AAPL","size":-4\},\{"symbol":"AAPL","size":-3\}\]/,
+    });
+
 });
 

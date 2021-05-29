@@ -11,16 +11,26 @@ import createPosition from './createPosition.mjs';
  * @param {Order[]} options.orders               Array of orders for current bar
  * @param {Position[]} options.positions         Currently existing positions
  * @param {object[]} options.resolvedData        Resolved data for current bar
- * @param {function} options.createId            A function that returns a new ID with every call
+ * @param {function} options.createId            A function that returns a new ID on every call
  */
 export default ({
     orders,
     positions,
     resolvedData,
     createId,
-} = {}) => (
+} = {}) => {
 
-    orders.reduce((prev, order) => {
+    // Make sure there's only one order per symbol. We might handle this one time; but it mostly
+    // looks like a problem with the strategy.
+    const allOrderSymbols = new Set();
+    for (const order of orders) {
+        if (allOrderSymbols.has(order.symbol)) {
+            throw new Error(`executeOrders: Make sure you only return one order per symbol; ${order.symbol} contains multiple orders: ${JSON.stringify(orders.filter(singleOrder => singleOrder.symbol === order.symbol))}.`);
+        }
+        allOrderSymbols.add(order.symbol);
+    }
+
+    return orders.reduce((prev, order) => {
 
         // Get existing position for order's symbol, clone their content
         const existingPositions = positions
@@ -74,6 +84,8 @@ export default ({
         // there can never be multiple positions that go in different directions)
         else {
 
+            console.log('smaller');
+
             // Close old positions first; sort sorts in place
             const sortedPositions = [...existingPositions].sort((a, b) => b.barsHeld - a.barsHeld);
 
@@ -90,11 +102,11 @@ export default ({
                         // right on open
                         closed: [...adjusted.closed, position],
                         reducedBy: adjusted.reducedBy + Math.abs(position.size),
-                    }
+                    };
                 }
 
-                // Reduce position as previously closed plus current position are larger than
-                // order's size
+                // Reduce existing position's size (as previously closed plus current position are
+                // larger than order's size)
                 else if (adjusted.reducedBy + Math.abs(position.size) > Math.abs(order.size)) {
                     // New position size will be the size of the whole order minus the size of
                     // the previously closed positions. The position's sign will be the opposite
@@ -110,7 +122,7 @@ export default ({
                                 resolvedData: dataForCurrentSymbol,
                                 // Orders are always executed on open
                                 type: 'open',
-                                initialPosition: position,
+                                initialPosition: position.initialPosition,
                             }),
                         ],
                         // Create a clone for the closed part of the position
@@ -121,7 +133,7 @@ export default ({
                                 resolvedData: dataForCurrentSymbol,
                                 // Orders are always executed on open
                                 type: 'open',
-                                initialPosition: position,
+                                initialPosition: position.initialPosition,
                             }),
                         ],
                         reducedBy: adjusted.reducedBy + Math.abs(order.size),
@@ -166,6 +178,6 @@ export default ({
         closedPositions: [],
         ordersExecuted: [],
         ordersNotExecuted: [],
-    })
+    });
 
-);
+};
