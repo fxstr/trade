@@ -38,6 +38,6 @@ export default (position, originalPosition) => {
     const priceChange = (position.price - originalPosition.price) * originalPosition.pointValue *
         position.exchangeRate * position.size;
 
-    return pricePaid + absoluteExchangeRateChange + priceChange; 
+    return pricePaid + absoluteExchangeRateChange + priceChange;
 
 };

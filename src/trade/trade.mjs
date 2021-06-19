@@ -281,6 +281,7 @@ async function trade({
         result.push({
             date: currentDate,
             orders,
+            // TODO: We need cash on open, afterOpen (and maybe on close)
             cash: currentCash,
             cost,
             positionsOnOpen,

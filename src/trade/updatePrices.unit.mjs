@@ -1,9 +1,18 @@
 import test from 'ava';
 import updatePrices from './updatePrices.mjs';
 import createTestData from '../../testData/createTestData.mjs';
-import resolveData from '../../testData/resolveData.mjs';
+import resolveRawData from '../../testData/resolveData.mjs';
 import createPosition from './createPosition.mjs';
 
+const resolveData = (data, type) => {
+    const resolved = resolveRawData(data);
+    const final = {
+        ...resolved,
+        price: resolved[type],
+        exchangeRate: resolved[`${type}ExchangeRate`],
+    };
+    return final;
+};
 
 test('updates positions for close by default', (t) => {
 
@@ -71,7 +80,6 @@ test('adds bar if type is open', (t) => {
             type,
             initialPosition: aaplPos.initialPosition,
             barsHeld: 1,
-            id: 0,
         }),
     ]);
 

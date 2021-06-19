@@ -1,12 +1,16 @@
 import createPosition from './createPosition.mjs';
+import mergeOrders from './mergeOrders.mjs';
+import getPositionChanges from './getPositionChanges.mjs';
 
 /**
  * Takes current positions and updates them according to orders. Either
- * - reduces size of an existing position
+ * - reduces size of an existing position (if it does, part of the position will be returned as 
+ *   closedPositions, part as currentPositions)
  * - adds a new position (never enlarges an existing one)
  * - creates a new position (when no position in the given direction existed)
  * Data for current bar is needed as orders can only be created if current bar contains data for
  * the given instrument.
+ * Does **NOT** update data of unaffected positions as this is done externally before or after!
  * @param {object} options
  * @param {Order[]} options.orders               Array of orders for current bar
  * @param {Position[]} options.positions         Currently existing positions
@@ -20,161 +24,127 @@ export default ({
     createId,
 } = {}) => {
 
-    // Make sure there's only one order per symbol. We might handle this one time; but it mostly
-    // looks like a problem with the strategy.
-    const allOrderSymbols = new Set();
-    for (const order of orders) {
-        if (allOrderSymbols.has(order.symbol)) {
-            throw new Error(`executeOrders: Make sure you only return one order per symbol; ${order.symbol} contains multiple orders: ${JSON.stringify(orders.filter(singleOrder => singleOrder.symbol === order.symbol))}.`);
-        }
-        allOrderSymbols.add(order.symbol);
-    }
+    const mergedOrders = mergeOrders(orders);
 
-    return orders.reduce((prev, order) => {
-
-        // Get existing position for order's symbol, clone their content
-        const existingPositions = positions
-            .filter(pos => pos.symbol === order.symbol)
-            .map(pos => ({ ...pos }));
-
-        // Get data for current symbol. There should be only one entry in resolvedData for any
-        // symbol
-        const dataForCurrentSymbol = resolvedData.find(data => data.symbol === order.symbol);
+    // Simplify orders by merging multiple orders of the same instrument. This allows us to have
+    // easy size adjustments as we can close all positions and create new ones in one single
+    // order array.
+    return mergedOrders.reduce((prev, order) => {
 
 
-        // If there's no data for the current bar or no order size, no position can be created
+        // Get data for current symbol; return early if it does not exist
+        const dataForCurrentSymbol = resolvedData.find(({ symbol }) => symbol === order.symbol);
         if (!dataForCurrentSymbol || order.size === 0) {
-            // Clone existing positions, if they exist
             return {
-                closedPositions: prev.closedPositions,
-                currentPositions: [...prev.currentPositions, ...(existingPositions || [])],
-                ordersNotExecuted: [...prev.ordersNotExecuted, order],
-                ordersExecuted: prev.ordersExecuted,
-            };
-        }
-
-        const currentSize = existingPositions.reduce((sum, pos) => sum + pos.size, 0);
-        const enlarge = currentSize === 0 || Math.sign(currentSize) === Math.sign(order.size);
-
-
-        // To enlarge, we always create a new position. If we didn't, we'd have to update the
-        // initial position's open value etc. in relation to the initial and the current price.
-        if (enlarge) {
-            const newPosition = createPosition({
-                size: order.size,
-                resolvedData: dataForCurrentSymbol,
-                // Orders are always executed on open
-                type: 'open',
-                id: createId(),
-            });
-            return {
-                closedPositions: prev.closedPositions,
+                ...prev,
                 currentPositions: [
                     ...prev.currentPositions,
-                    ...(existingPositions || []),
-                    newPosition,
+                    ...positions.filter(({ symbol }) => symbol === order.symbol)
                 ],
-                ordersExecuted: [...prev.ordersExecuted, order],
-                ordersNotExecuted: prev.ordersNotExecuted,
+                ordersNotExecuted: [...prev.ordersNotExecuted, order],
             };
         }
 
 
-        // Position is reduced (order.size has the opposite direction of position.size, because
-        // there can never be multiple positions that go in different directions)
-        else {
+        // Get all positions for the current order's symbol
+        const existingPositions = positions
+            .filter(position => position.symbol === order.symbol);
 
-            console.log('smaller');
+        // Current positions can only go in one direction as they are always closed when an order
+        // goes in the opposite direction.
+        const existingTotalSize = existingPositions.reduce((sum, { size }) => sum + size, 0);
 
-            // Close old positions first; sort sorts in place
-            const sortedPositions = [...existingPositions].sort((a, b) => b.barsHeld - a.barsHeld);
+        const { sizeToOpen, sizeToClose } = getPositionChanges({
+            currentSize: existingTotalSize,
+            orderSize: order.size,
+        });
 
-            // Go through all positions for symbol; reduce, close or keep where necessary,
-            // starting with oldest position first
-            const { closed, current, reducedBy } = sortedPositions.reduce((adjusted, position) => {
+        // Create clone that will be returned
+        // As there *is* data for the current bar, order will always be executed
+        const returnValue = {
+            ...prev,
+            ordersExecuted: [...prev.ordersExecuted, order],
+        };
 
-                // Close position as previous position's and its size are smaller than the order's
-                // size
-                if (adjusted.reducedBy + Math.abs(position.size) <= Math.abs(order.size)) {
-                    return {
-                        current: adjusted.current,
-                        // Position is not updated before closing as this should have happened
-                        // right on open
-                        closed: [...adjusted.closed, position],
-                        reducedBy: adjusted.reducedBy + Math.abs(position.size),
-                    };
-                }
 
-                // Reduce existing position's size (as previously closed plus current position are
-                // larger than order's size)
-                else if (adjusted.reducedBy + Math.abs(position.size) > Math.abs(order.size)) {
-                    // New position size will be the size of the whole order minus the size of
-                    // the previously closed positions. The position's sign will be the opposite
-                    // of order's sign (as the position is reduced).
-                    const closedPositionSize = (Math.abs(order.size) - adjusted.reducedBy) *
-                        Math.sign(order.size) * -1;
-                    return {
-                        // Update current position that continues to exist
-                        current: [
-                            ...adjusted.current,
-                            createPosition({
-                                size: position.size - closedPositionSize,
-                                resolvedData: dataForCurrentSymbol,
-                                // Orders are always executed on open
-                                type: 'open',
-                                initialPosition: position.initialPosition,
-                            }),
-                        ],
-                        // Create a clone for the closed part of the position
-                        closed: [
-                            ...adjusted.closed,
-                            createPosition({
-                                size: closedPositionSize,
-                                resolvedData: dataForCurrentSymbol,
-                                // Orders are always executed on open
-                                type: 'open',
-                                initialPosition: position.initialPosition,
-                            }),
-                        ],
-                        reducedBy: adjusted.reducedBy + Math.abs(order.size),
-                    };
-                }
+        // Close oldest positions first: Sort by amount of bars held
+        const sortedCurrentPositions = [...existingPositions]
+            .sort((a, b) => b.barsHeld - a.barsHeld);
 
-                // Position can stay as it is
-                else {
-                    return {
-                        current: [...adjusted.current, position],
-                        closed: adjusted.closed,
-                        reducedBy: adjusted.reducedBy,
-                    };
-                }
-            }, { reducedBy: 0, closed: [], current: [] });
 
-            // If after closing all positions, order's size was still not reached by closed
-            // positions, create a new position that goes in the opposite direction
-            const newPositions = [];
-            if (reducedBy < Math.abs(order.size)) {
-                newPositions.push(createPosition({
-                    resolvedData: dataForCurrentSymbol,
-                    type: 'open',
-                    size: (Math.abs(order.size) - reducedBy) * Math.sign(order.size),
-                    id: createId(),
-                }));
+        // Go through current positions; close until sizeToClose is reached, keep the rest
+        let toClose = Math.abs(sizeToClose);
+        for (const position of sortedCurrentPositions) {
+
+            // Get size of the current position that should be removed/closed
+            const currentPositionSizeToClose = Math.min(
+                Math.abs(position.size),
+                toClose,
+            );
+            // Make sure we keep whatever's left, but not less thatn 0 (if
+            // currentPositionSizeToClose is larger than position.size)
+            const currentPositionSizeToKeep = Math.max(
+                Math.abs(position.size) - Math.abs(currentPositionSizeToClose),
+                0,
+            );
+
+            // Positions that are kept (partially or completely)
+            if (currentPositionSizeToKeep > 0) {
+                returnValue.currentPositions = [
+                    ...returnValue.currentPositions,
+                    createPosition({
+                        size: currentPositionSizeToKeep * Math.sign(position.size),
+                        resolvedData: dataForCurrentSymbol,
+                        // Orders are always executed on open
+                        type: 'open',
+                        initialPosition: position.initialPosition,
+                        barsHeld: position.barsHeld,
+                    }),
+                ];
             }
 
-            return {
-                currentPositions: [...prev.currentPositions, ...current, ...newPositions],
-                closedPositions: [...prev.closedPositions, ...closed],
-                ordersNotExecuted: prev.ordersNotExecuted,
-                ordersExecuted: [...prev.ordersExecuted, order],
-            };
+            // Positions that are closed (partially or completely)
+            if (currentPositionSizeToClose > 0) {
+                returnValue.closedPositions = [
+                    ...returnValue.closedPositions,
+                    createPosition({
+                        size: currentPositionSizeToClose * Math.sign(position.size),
+                        resolvedData: dataForCurrentSymbol,
+                        // Orders are always executed on open
+                        type: 'open',
+                        initialPosition: position.initialPosition,
+                        barsHeld: position.barsHeld,
+                    }),
+                ];
+            }
+
+            toClose -= currentPositionSizeToClose;
 
         }
 
+        // Create new position
+        if (sizeToOpen) {
+            returnValue.currentPositions = [
+                ...returnValue.currentPositions,
+                createPosition({
+                    size: sizeToOpen,
+                    resolvedData: dataForCurrentSymbol,
+                    // Orders are always executed on open
+                    type: 'open',
+                    id: createId(),
+                }),
+            ];
+        }
+
+        return returnValue;
+
     }, {
-        // Start with all existing positions that are not affected by current orders
+        // Start with all existing positions that are not affected by current orders; do not
+        // update date on them as their data is still based on the previous (not the current) data
         currentPositions: positions
-            .filter(position => !orders.map(({ symbol }) => symbol).includes(position.symbol)),
+            .filter(position => (
+                !mergedOrders.map(({ symbol }) => symbol).includes(position.symbol)
+            )),
         closedPositions: [],
         ordersExecuted: [],
         ordersNotExecuted: [],

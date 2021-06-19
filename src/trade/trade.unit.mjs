@@ -38,6 +38,7 @@ const createPosition = ({
     id,
     currentValue,
     originalValue,
+    profit = 0,
 }) => ({
     barsHeld,
     date: currentData.date,
@@ -54,6 +55,7 @@ const createPosition = ({
         size: originalSize,
         symbol: originalData.symbol,
         type: 'open',
+        profit: 0,
         value: originalValue,
     },
     price: currentData[type],
@@ -62,6 +64,7 @@ const createPosition = ({
     type,
     exchangeRate: currentData[`${type}ExchangeRate`],
     value: currentValue,
+    profit,
 });
 
 
@@ -220,7 +223,7 @@ test('returns expected results', async(t) => {
         date: first[0].date,
         orders: [{ symbol: 'AAPL', size: 2 }],
         cash: 1000,
-        cost: 0,        
+        cost: 0,
         positionsOnOpen: [],
         positionsAfterTrade: [],
         positionsOnClose: [],
@@ -247,6 +250,7 @@ test('returns expected results', async(t) => {
             id: 0,
             originalValue: 161.20000000000002,
             currentValue: 161.20000000000002,
+            profit: 0,
         })],
         positionsOnClose: [createPosition({
             barsHeld: 0,
@@ -259,6 +263,7 @@ test('returns expected results', async(t) => {
             id: 0,
             originalValue: 161.20000000000002,
             currentValue: 161.20000000000002,
+            profit: 0,
         })],
         closedPositions: [],
     });
@@ -273,6 +278,7 @@ test('returns expected results', async(t) => {
         cash: (838.8 - 4662) + 134,
         // 2 AAPL at current open prices
         positionsOnOpen: [createPosition({
+            // HERE!
             barsHeld: 1,
             type: 'open',
             // Position is opened on OPEN of second day
@@ -288,6 +294,7 @@ test('returns expected results', async(t) => {
             // Loss: 0.1 * 1.2 * 2 * 10 = 2.4
             // Total loss is 24.8 + 2.4 = 27.2
             currentValue: 161.2 - 27.2,
+            profit: 134 - 161.20000000000002,
         })],
         // Close AAPL, open AMZN
         positionsAfterTrade: [createPosition({
@@ -302,6 +309,7 @@ test('returns expected results', async(t) => {
             // -10 * 11.1 * 2.1 * 20
             originalValue: 4662,
             currentValue: 4662,
+            profit: 0,
         })],
         positionsOnClose: [createPosition({
             barsHeld: 0,
@@ -319,6 +327,7 @@ test('returns expected results', async(t) => {
             // = (2.2/2.1 * 4662) - 4662 = 222
             // Price change = 0.1 * 20 * 2.2 * 10 = 44
             currentValue: 4927.999999999999,
+            profit: 4927.999999999999 - 4662,
         })],
         // Same as positionsOnOpen
         closedPositions: [createPosition({
@@ -331,6 +340,7 @@ test('returns expected results', async(t) => {
             id: 0,
             originalValue: 161.20000000000002,
             currentValue: 134,
+            profit: 134 - 161.20000000000002,
         })],
     });
 

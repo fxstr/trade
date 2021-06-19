@@ -8,6 +8,7 @@ import getPositionsProfits from './getPositionsProfits.mjs';
  * @param {object[]} result     Result as returned by trade function
  */
 export default (result) => {
+
     const adjustedData = result.map((item) => {
         // Value of all current positions
         const positionsValue = item.positionsOnClose.reduce((prev, { value }) => prev + value, 0);
@@ -16,18 +17,19 @@ export default (result) => {
             total: item.cash + positionsValue,
             date: item.date,
             positionIds: item.positionsOnClose.map(({ id }) => id),
-            // Final value of a position is just before it is closed (right after the open of a
-            // bar); therefore use positionsOnOpen (value of the position on the open of a bar)
-            positionsBeforeTheyAreClosed: item.positionsOnOpen,
         };
     });
 
     const cagrValue = cagr(adjustedData.map(item => [item.date, item.total]));
     const maxAbsoluteDrawdown = maxDrawdown(adjustedData.map(({ total }) => total));
     const maxRelativeDrawdown = maxDrawdown(adjustedData.map(({ total }) => total), true);
+    // TODO: Also count reduction in size (position and its id stay unmodified when a position's
+    // size is reduced)
     const tradeCount = countTrades(adjustedData.map(({ positionIds }) => positionIds));
-    const tradeProfits = getPositionsProfits(adjustedData
-        .map(({ positionsBeforeTheyAreClosed }) => positionsBeforeTheyAreClosed));
+    // Final value of a position is just before it is closed (right after the open of a
+    // bar); therefore use positionsOnOpen (value of the position on the open of a bar)
+    const tradeProfits = getPositionsProfits(result
+        .map(({ positionsOnOpen }) => positionsOnOpen));
     const numberOfProfitableTrades = tradeProfits.filter(profit => profit > 0).length;
     const numberOfLosingTrades = tradeProfits.filter(profit => profit < 0).length;
     const percentProfitable = numberOfProfitableTrades / tradeProfits.length;

@@ -2,7 +2,7 @@ import test from 'ava';
 import addPerformanceIndicators from './addPerformanceIndicators.mjs';
 
 const createData = () => [{
-    // total 140
+    // Total 140
     date: new Date('2020-01-01'),
     cash: 80,
     positionsOnClose: [{ value: 60, id: 0 }],
@@ -10,10 +10,7 @@ const createData = () => [{
         // Profitable
         {
             id: 0,
-            value: 8,
-            initialPosition: {
-                value: 4,
-            },
+            profit: 4,
         },
     ],
 }, {
@@ -25,18 +22,12 @@ const createData = () => [{
         // Losing
         {
             id: 1,
-            value: 3,
-            initialPosition: {
-                value: 7,
-            },
+            profit: 0,
         },
         // Losing
         {
             id: 2,
-            value: 4,
-            initialPosition: {
-                value: 6,
-            },
+            profit: -2,
         },
     ],
 }, {
@@ -48,10 +39,7 @@ const createData = () => [{
         // Not losing nor profitable
         {
             id: 3,
-            value: 4,
-            initialPosition: {
-                value: 4,
-            },
+            profit: -6,
         },
     ],
 }];
@@ -65,6 +53,6 @@ test('adds indicators', (t) => {
     t.deepEqual(result.numberOfProfitableTrades, 1);
     t.deepEqual(result.numberOfLosingTrades, 2);
     t.deepEqual(result.percentProfitable, 0.25);
-    // -4, 4, -2, 0; total -2 divided by 4 trades
-    t.deepEqual(result.averageProfit, -0.5);
+    // 4, 0, -2, 6; total -4 divided by 4 trades
+    t.deepEqual(result.averageProfit, -1);
 });

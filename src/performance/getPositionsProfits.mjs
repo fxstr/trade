@@ -11,14 +11,8 @@ export default (positionsByDate) => {
     const positionsById = new Map();
     const allPositions = positionsByDate.flat();
     for (const position of allPositions) {
-        positionsById.set(position.id, position);
+        positionsById.set(position.id, position.profit);
     }
-    const profits = [...positionsById.values()].map((position) => {
-        if (position.size !== position.initialPosition.size) {
-            throw new Error(`getPositionsProfit: Current size (${position.size}) must be the same as initialPosition's size (${position.initialPosition.size}); implement correctly.`);
-        }
-        return position.value - position.initialPosition.value;
-    });
-    return profits;
+    return [...positionsById.values()];
 
 };
